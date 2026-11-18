@@ -13,7 +13,7 @@ use neb_wallet::{RpcClient, Wallet};
 use crate::backend::{DEFAULT_NODE, hex32};
 
 /// The public node of the main network, behind TLS.
-pub const PUBLIC_NODE: &str = "https://neuralenginebyte.org/rpc";
+pub const PUBLIC_NODE: &str = "https://rpc.neuralenginebyte.org";
 /// The genesis block id of the main network: the public node must be on this chain.
 const MAINNET: &str = "da2f5af7bb4c5e2bcc8d558b2f4f01d4c88557a943e6cff9cd035638fe9439ae";
 
@@ -154,12 +154,17 @@ mod tests {
         assert!(wallet.keys[0].controls(first.lock_type, &first.lock_data));
     }
 
-    // Needs the Internet: `cargo test -- --ignored`. The public node answers over TLS and is on the main network.
+    // Needs the Internet: `cargo test -- --ignored`. The public node answers over TLS, is on the main network and
+    // gives the outputs of a lock: none for a new key.
     #[test]
     #[ignore]
     fn the_public_node_answers_over_tls() {
-        assert!(call(PUBLIC_NODE, "getblockcount", vec![]).unwrap().as_u64().is_some());
+        let tip = call(PUBLIC_NODE, "getblockcount", vec![]).unwrap().as_u64().unwrap() as u32;
         assert_eq!(call(PUBLIC_NODE, "getblockhash", vec![Value::Number(0)]).unwrap().as_str(), Some(MAINNET));
+        let mut wallet = Wallet::empty("unused");
+        wallet.keys.push(WalletKey::generate());
+        let scan = scan(PUBLIC_NODE, tip, &wallet).unwrap();
+        assert_eq!((scan.utxos.len(), scan.tip_height), (0, tip));
     }
 
     // Needs a node on this computer: `cargo test -- --ignored`. A new key holds nothing, on the height of the node.
