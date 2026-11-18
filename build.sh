@@ -12,4 +12,4 @@ done
 case "$(rustc -vV | sed -n 's/^host: //p')" in *windows-msvc) flags="$flags -C target-feature=+crt-static" ;; esac
 cd "$here"
 RUSTFLAGS="$flags" cargo build --release --locked
-ls -l target/release/neb-wallet-gui*
+ls -l "${CARGO_TARGET_DIR:-target}"/release/neb-wallet-gui*
