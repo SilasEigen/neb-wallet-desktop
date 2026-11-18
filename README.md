@@ -7,6 +7,7 @@ Status: early. CI builds and tests it on Windows and Linux; the macOS job has no
 ## What it does
 
 - Creates a key or imports one, and stores it encrypted with a password, in `neb-wallet`'s key file format.
+- Accounts: one per key in the key file. Click the brand to switch accounts, import a key or create one.
 - Shows the balance: spendable coins and coins still maturing.
 - Receive: the address as text and as a QR code.
 - Send: an address and an amount, a review screen with the fee, then the payment.

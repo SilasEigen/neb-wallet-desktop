@@ -97,6 +97,25 @@ pub fn title(ui: &mut Ui, name: &str) -> bool {
     back
 }
 
+/// A row of the list of accounts: its name on the left, its address in short on the right, a green edge when it is
+/// the one shown. True when it was clicked.
+pub fn account_row(ui: &mut Ui, name: &str, address: &str, active: bool) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 56.0), Sense::click());
+    let fill = if response.hovered() { Color32::from_rgb(36, 36, 36) } else { CARD };
+    ui.painter().rect(rect, Rounding::same(16.0), fill, Stroke::new(1.0_f32, if active { GREEN } else { EDGE }));
+    let font = |size| egui::FontId::monospace(size);
+    // An address is ASCII: it is cut at byte positions.
+    let short = if address.len() > 20 {
+        format!("{}...{}", &address[..12], &address[address.len() - 6..])
+    } else {
+        address.to_string()
+    };
+    let ink = if active { GREEN } else { WHITE };
+    ui.painter().text(rect.left_center() + vec2(16.0, 0.0), egui::Align2::LEFT_CENTER, name, font(15.0), ink);
+    ui.painter().text(rect.right_center() - vec2(16.0, 0.0), egui::Align2::RIGHT_CENTER, short, font(13.0), GREY);
+    response.clicked()
+}
+
 /// A tile of the home screen: a sign in green over a word, both centred. True when it was clicked.
 pub fn tile(ui: &mut Ui, sign: &str, word: &str) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 92.0), Sense::click());

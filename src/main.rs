@@ -59,6 +59,8 @@ enum Screen {
     NewPassword(Purpose),
     Locked,
     Home,
+    Accounts,
+    AddKey,
     Receive,
     Send,
     Review,
@@ -76,13 +78,19 @@ enum Screen {
 enum Msg {
     /// A wallet that was opened or created; with its secret when it is new, to back it up.
     Opened(Result<(Wallet, Option<String>), String>),
-    Balance(Result<Balance, String>),
+    /// With the account that was asked about.
+    Balance(usize, Result<Balance, String>),
     Sent(Result<String, String>),
     Key(Result<String, String>),
 }
 
 struct App {
     screen: Screen,
+    /// The key file, with every key.
+    file: Option<Wallet>,
+    /// The account on the screen: the position of its key in the file.
+    account: usize,
+    /// That account alone, as a wallet of one key: what the screens show and what a payment spends.
     wallet: Option<Arc<Wallet>>,
     node: String,
     balance: Option<Balance>,
@@ -131,6 +139,8 @@ impl App {
         let node = backend::load_node();
         let mut app = App {
             screen: if backend::wallet_path().exists() { Screen::Locked } else { Screen::Welcome },
+            file: None,
+            account: 0,
             wallet: None,
             node_edit: node.clone(),
             node,
@@ -193,15 +203,25 @@ impl App {
     }
 
     fn open(&mut self, ctx: &Context, wallet: Wallet) {
-        let address = backend::address(&wallet);
-        self.code = qr::encode(&address);
-        self.wallet = Some(Arc::new(wallet));
+        self.file = Some(wallet);
         self.screen = Screen::Home;
         self.last_active = Instant::now();
+        self.select(ctx, 0);
+    }
+
+    /// Puts one account of the key file on the screen: its address, its code, its balance.
+    fn select(&mut self, ctx: &Context, account: usize) {
+        let Some(view) = self.file.as_ref().and_then(|file| backend::account(file, account)) else { return };
+        self.account = account;
+        self.code = qr::encode(&backend::address(&view));
+        self.wallet = Some(Arc::new(view));
+        self.balance = None;
+        self.node_error.clear();
         self.refresh(ctx);
     }
 
     fn lock(&mut self) {
+        self.file = None;
         self.wallet = None;
         self.balance = None;
         self.code = None;
@@ -221,8 +241,8 @@ impl App {
             return;
         }
         self.refreshing = true;
-        let node = self.node.clone();
-        self.spawn(ctx, move || Msg::Balance(backend::balance(&wallet, &node)));
+        let (node, account) = (self.node.clone(), self.account);
+        self.spawn(ctx, move || Msg::Balance(account, backend::balance(&wallet, &node)));
     }
 
     fn receive(&mut self, ctx: &Context, msg: Msg) {
@@ -240,8 +260,13 @@ impl App {
                 self.busy = false;
                 self.error = if matches!(self.screen, Screen::Locked) { "Wrong password.".into() } else { e };
             }
-            Msg::Balance(result) => {
+            Msg::Balance(account, result) => {
                 self.refreshing = false;
+                // The answer is about another account than the one on the screen: it is asked again.
+                if account != self.account {
+                    self.refresh(ctx);
+                    return;
+                }
                 match result {
                     Ok(balance) => {
                         self.balance = Some(balance);
@@ -309,6 +334,8 @@ impl eframe::App for App {
                 Screen::NewPassword(purpose) => self.new_password(ui, purpose.clone()),
                 Screen::Locked => self.locked(ui),
                 Screen::Home => self.home(ui),
+                Screen::Accounts => self.accounts(ui),
+                Screen::AddKey => self.add_key(ui),
                 Screen::Receive => self.receive_screen(ui),
                 Screen::Send => self.send_screen(ui),
                 Screen::Review => self.review(ui),

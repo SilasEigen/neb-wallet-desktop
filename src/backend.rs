@@ -84,6 +84,27 @@ pub fn unlock(path: &Path, password: &str) -> Result<Wallet, String> {
     Ok(wallet)
 }
 
+/// Adds a key to the open key file and saves the file. Gives the position of the key, which may already be there.
+pub fn add_key(wallet: &mut Wallet, key: WalletKey) -> Result<usize, String> {
+    if let Some(index) = wallet.keys.iter().position(|k| k.lock_data == key.lock_data) {
+        return Ok(index);
+    }
+    wallet.keys.push(key);
+    if let Err(e) = wallet.save() {
+        wallet.keys.pop();
+        return Err(e.to_string());
+    }
+    Ok(wallet.keys.len() - 1)
+}
+
+/// One account: a wallet that holds a single key of the key file. It has no file and is never saved.
+pub fn account(wallet: &Wallet, index: usize) -> Option<Wallet> {
+    let key = wallet.keys.get(index)?;
+    let mut view = Wallet::empty(String::new());
+    view.keys.push(WalletKey::from_secret(key.secret));
+    Some(view)
+}
+
 pub fn address(wallet: &Wallet) -> String {
     wallet.keys.first().map(|k| k.address.clone()).unwrap_or_default()
 }
@@ -173,6 +194,23 @@ mod tests {
         assert_eq!(address(&made), address(&opened));
         assert!(is_address(&address(&opened)));
         assert!(Wallet::is_encrypted(&path).expect("a readable file"));
+    }
+
+    #[test]
+    fn add_key_keeps_every_account_in_the_file() {
+        let path = temp("accounts");
+        let mut wallet = create(&path, "correct horse").unwrap();
+        let first = address(&wallet);
+        let second = WalletKey::from_secret([3; 32]);
+        let second_address = second.address.clone();
+        assert_eq!(add_key(&mut wallet, second).unwrap(), 1);
+        // the same key again is the same account
+        assert_eq!(add_key(&mut wallet, WalletKey::from_secret([3; 32])).unwrap(), 1);
+        let reopened = unlock(&path, "correct horse").unwrap();
+        assert_eq!(reopened.keys.len(), 2);
+        assert_eq!(address(&account(&reopened, 0).unwrap()), first);
+        assert_eq!(address(&account(&reopened, 1).unwrap()), second_address);
+        assert!(account(&reopened, 2).is_none());
     }
 
     #[test]

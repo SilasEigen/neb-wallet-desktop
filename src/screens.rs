@@ -4,8 +4,10 @@ use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Align, Color32, Frame, Layout, Margin, Rounding, Sense, Stroke, Ui, Vec2, pos2, vec2};
 
+use neb_wallet::WalletKey;
+
 use crate::ui::{
-    CARD, EDGE, GREEN, GREY, GROUND, WHITE, caption, card, entered, field, round, text, tile, title, wide,
+    CARD, EDGE, GREEN, GREY, GROUND, WHITE, account_row, caption, card, entered, field, round, text, tile, title, wide,
     wide_in_card, wrapped,
 };
 use crate::{App, Msg, Purpose, Screen, backend, qr};
@@ -35,7 +37,7 @@ impl App {
         self.brand(ui);
         ui.vertical_centered(|ui| {
             ui.label(text("Your NEB wallet", 22.0, WHITE).strong());
-            ui.label(text("One key, kept on this computer and encrypted\nwith a password you choose.", 14.0, GREY));
+            ui.label(text("Your keys, kept on this computer and encrypted\nwith a password you choose.", 14.0, GREY));
         });
         ui.with_layout(Layout::bottom_up(Align::Center), |ui| {
             if wide(ui, "Import a key", false, true) {
@@ -131,15 +133,20 @@ impl App {
     pub(crate) fn home(&mut self, ui: &mut Ui) {
         // Top bar: the brand on the left; hide the amounts, and the settings, on the right.
         ui.horizontal(|ui| {
-            Frame::none()
+            // The brand names the account on the screen and opens the list of accounts.
+            let name = format!("NEB  Account {}", self.account + 1);
+            let brand = Frame::none()
                 .fill(CARD)
                 .stroke(Stroke::new(1.0_f32, EDGE))
                 .rounding(Rounding::same(22.0))
                 .inner_margin(Margin::symmetric(12.0, 9.0))
                 .show(ui, |ui| {
                     ui.image((self.mark.id(), vec2(26.0, 23.0)));
-                    ui.label(text("NEB", 14.0, WHITE).strong());
+                    ui.add(egui::Label::new(text(name, 14.0, WHITE).strong()).selectable(false));
                 });
+            if brand.response.interact(Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                self.go(Screen::Accounts);
+            }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if round(ui, "\u{2699}", WHITE) {
                     self.node_edit = self.node.clone();
@@ -375,6 +382,87 @@ impl App {
         });
     }
 
+    /// The accounts of the key file: one key each. A click shows an account; the buttons add one.
+    pub(crate) fn accounts(&mut self, ui: &mut Ui) {
+        if title(ui, "Accounts") {
+            self.go(Screen::Home);
+            return;
+        }
+        let addresses: Vec<String> =
+            self.file.as_ref().map(|file| file.keys.iter().map(|k| k.address.clone()).collect()).unwrap_or_default();
+        let mut chosen = None;
+        egui::ScrollArea::vertical().max_height(ui.available_height() - 140.0).show(ui, |ui| {
+            for (index, address) in addresses.iter().enumerate() {
+                if account_row(ui, &format!("Account {}", index + 1), address, index == self.account) {
+                    chosen = Some(index);
+                }
+            }
+        });
+        if let Some(index) = chosen {
+            self.select(ui.ctx(), index);
+            self.go(Screen::Home);
+            return;
+        }
+        self.error_line(ui);
+        ui.with_layout(Layout::bottom_up(Align::Center), |ui| {
+            if wide(ui, "Import a key", false, true) {
+                self.secret.clear();
+                self.go(Screen::AddKey);
+            }
+            if wide(ui, "Create a key", true, true) {
+                let key = WalletKey::generate();
+                let secret = key.secret_hex();
+                if self.add_account(ui.ctx(), key) {
+                    self.key_shown = false;
+                    self.screen = Screen::Key(secret, true);
+                }
+            }
+        });
+    }
+
+    /// Imports one more key into the key file.
+    pub(crate) fn add_key(&mut self, ui: &mut Ui) {
+        if title(ui, "Import a key") {
+            self.secret.clear();
+            self.go(Screen::Accounts);
+            return;
+        }
+        caption(ui, "SECRET KEY (64 HEX CHARACTERS)");
+        field(ui, &mut self.secret, "", true);
+        let valid = self.secret.trim().len() == 64 && self.secret.trim().chars().all(|c| c.is_ascii_hexdigit());
+        self.error_line(ui);
+        ui.with_layout(Layout::bottom_up(Align::Center), |ui| {
+            if wide(ui, if valid { "Add" } else { "Enter Key" }, true, valid) {
+                let secret = std::mem::take(&mut self.secret);
+                match WalletKey::from_text(secret.trim()) {
+                    Ok(key) => {
+                        if self.add_account(ui.ctx(), key) {
+                            self.go(Screen::Home);
+                        }
+                    }
+                    Err(e) => self.error = e,
+                }
+            }
+        });
+    }
+
+    /// Adds a key to the key file and shows its account. True when the key is in the file.
+    // ponytail: the file is encrypted again on the thread of the window, about a second; a task if it is felt.
+    fn add_account(&mut self, ctx: &egui::Context, key: WalletKey) -> bool {
+        let Some(file) = self.file.as_mut() else { return false };
+        match backend::add_key(file, key) {
+            Ok(index) => {
+                self.error.clear();
+                self.select(ctx, index);
+                true
+            }
+            Err(e) => {
+                self.error = e;
+                false
+            }
+        }
+    }
+
     pub(crate) fn key_password(&mut self, ui: &mut Ui) {
         if title(ui, "Secret key") {
             self.password.clear();
@@ -390,11 +478,11 @@ impl App {
             if (wide(ui, "Show", true, ready) || enter) && ready {
                 let password = std::mem::take(&mut self.password);
                 self.busy = true;
-                let path = backend::wallet_path();
+                let (path, account) = (backend::wallet_path(), self.account);
                 self.spawn(ui.ctx(), move || {
                     Msg::Key(
                         backend::unlock(&path, &password)
-                            .map(|w| w.keys.first().map(|k| k.secret_hex()).unwrap_or_default()),
+                            .map(|w| w.keys.get(account).map(|k| k.secret_hex()).unwrap_or_default()),
                     )
                 });
             }
