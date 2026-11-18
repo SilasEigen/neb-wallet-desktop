@@ -2,7 +2,7 @@
 
 A desktop wallet for [NEB](https://github.com/SilasEigen/neb), for Windows, Linux and macOS. It is a window on the NEB node's `neb-wallet` library: the keys, the chain scan, coin selection and signing are the library's.
 
-Status: early. CI builds and tests it on Windows and Linux; the macOS job has not run yet. Only the Windows build has been used by hand, and no real payment has been sent with it yet.
+Status: early. CI builds and tests it on Windows and Linux; the macOS job has not run yet. The Windows build has sent a payment on the main network through the public node. The Linux build has only run in CI.
 
 ## What it does
 

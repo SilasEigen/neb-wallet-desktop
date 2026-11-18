@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use neb_json::Value;
 use neb_wallet::wallet::{change_lock, recipient_lock};
-use neb_wallet::{FEE, Wallet, WalletKey, build_transaction, format_amount, parse_amount, select};
+use neb_wallet::{FEE, SelectError, Wallet, WalletKey, build_transaction, format_amount, parse_amount, select};
 
 use crate::remote;
 
@@ -160,7 +160,7 @@ pub fn send(wallet: &Wallet, node: &str, to: &str, amount: &str) -> Result<Strin
     let change = change_lock(wallet).map_err(|e| e.to_string())?;
     let (node, tip) = remote::reach(node)?;
     let scan = remote::scan(&node, tip, wallet)?;
-    let selection = select(&scan.mature(), amount, FEE).map_err(|e| e.to_string())?;
+    let selection = select(&scan.mature(), amount, FEE).map_err(|e| select_error(&e))?;
     // The chain id is the genesis block id (spec/node.md section 5.2).
     let genesis = remote::call(&node, "getblockhash", vec![Value::Number(0)])?;
     let chain_id = genesis.as_str().and_then(hex32).ok_or("bad genesis hash")?;
@@ -168,6 +168,19 @@ pub fn send(wallet: &Wallet, node: &str, to: &str, amount: &str) -> Result<Strin
     let hex: String = tx.encode().iter().map(|b| format!("{b:02x}")).collect();
     let sent = remote::call(&node, "sendrawtransaction", vec![Value::String(hex)])?;
     sent.as_str().map(str::to_string).ok_or_else(|| "transaction id is not a string".to_string())
+}
+
+/// Why the coins of the account do not make the payment, in words for the screen and amounts in NEB.
+fn select_error(error: &SelectError) -> String {
+    match error {
+        SelectError::ZeroTarget => "Enter an amount above zero.".into(),
+        SelectError::TooManyInputs => "This payment needs more than 255 coins. Send a smaller amount first.".into(),
+        SelectError::Insufficient { available, needed } => format!(
+            "Not enough spendable NEB on this account: {} available, {} needed with the fee.",
+            format_amount(*available),
+            format_amount(*needed)
+        ),
+    }
 }
 
 pub(crate) fn hex32(text: &str) -> Option<[u8; 32]> {
@@ -227,6 +240,13 @@ mod tests {
         tidy(&mut pasted);
         assert_eq!(pasted, address);
         assert!(is_address(&pasted));
+    }
+
+    #[test]
+    fn a_payment_that_cannot_be_built_is_explained_in_neb() {
+        let message = select_error(&SelectError::Insufficient { available: 0, needed: 10_010_000 });
+        assert!(message.starts_with("Not enough spendable NEB"), "{message}");
+        assert!(message.contains(&format_amount(10_010_000)) && !message.contains("10010000"), "{message}");
     }
 
     #[test]
