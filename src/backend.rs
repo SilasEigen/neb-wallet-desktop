@@ -137,6 +137,12 @@ pub fn fee() -> String {
     format_amount(FEE)
 }
 
+/// Removes what a pasted address may carry and an address never holds: line breaks, spaces, control characters.
+/// The Receive screen shows an address on three lines, and a selection of that text copies the line breaks.
+pub fn tidy(text: &mut String) {
+    text.retain(|c| !c.is_whitespace() && !c.is_control());
+}
+
 /// True when `text` is an address of the network.
 pub fn is_address(text: &str) -> bool {
     recipient_lock(text.trim()).is_ok()
@@ -211,6 +217,16 @@ mod tests {
         assert_eq!(address(&account(&reopened, 0).unwrap()), first);
         assert_eq!(address(&account(&reopened, 1).unwrap()), second_address);
         assert!(account(&reopened, 2).is_none());
+    }
+
+    #[test]
+    fn tidy_removes_the_line_breaks_of_a_pasted_address() {
+        let address = WalletKey::from_secret([5; 32]).address;
+        let mut pasted = format!(" {}\n{}\r\n{} ", &address[..21], &address[21..42], &address[42..]);
+        assert!(!is_address(&pasted));
+        tidy(&mut pasted);
+        assert_eq!(pasted, address);
+        assert!(is_address(&pasted));
     }
 
     #[test]

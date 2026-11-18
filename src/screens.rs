@@ -270,6 +270,7 @@ impl App {
         }
         caption(ui, "SEND TO");
         field(ui, &mut self.to, "Enter NEB address", false);
+        backend::tidy(&mut self.to);
         ui.add_space(6.0);
         caption(ui, "AMOUNT");
         field(ui, &mut self.amount, "0.0", false);
