@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component clippy,rustfmt
+          rustup default 1.99.1
+      - name: Window system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libgl1-mesa-dev
+      - name: Rust formatting
+        run: cargo fmt --check
+      - name: Clippy, warnings as errors
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --locked
+      - name: Release build
+        run: cargo build --release --locked
