@@ -74,6 +74,11 @@ pub fn reach(saved: &str) -> Result<(String, u32), String> {
     Err(last)
 }
 
+/// True for a node reached without TLS: a node of the user, read block by block when it must be.
+fn local(node: &str) -> bool {
+    !node.starts_with("https://")
+}
+
 /// The unspent outputs of the wallet keys on the best chain of `node`, whose height is `tip`.
 pub fn scan(node: &str, tip: u32, wallet: &Wallet) -> Result<Scan, String> {
     let mut utxos = Vec::new();
@@ -81,8 +86,9 @@ pub fn scan(node: &str, tip: u32, wallet: &Wallet) -> Result<Scan, String> {
         for lock in [key.lock_hex(), key.multisig_lock_hex()] {
             match call(node, "getutxos", vec![Value::String(lock.clone())]) {
                 Ok(list) => utxos.extend(owned(&list, &lock, wallet)?),
-                // A node older than `getutxos`, on this computer: the library reads the chain block by block.
-                Err(e) if e.contains("method not found") && !node.starts_with("https://") => {
+                // A node older than `getutxos`, or a lock with more outputs than one call gives: on this computer
+                // the library reads the chain block by block.
+                Err(e) if (e.contains("method not found") || e.contains("too many outputs")) && local(node) => {
                     return neb_wallet::scan(&RpcClient::new(node)?, wallet).map_err(|e| e.to_string());
                 }
                 Err(e) => return Err(e),
