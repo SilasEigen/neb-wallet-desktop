@@ -14,6 +14,11 @@ path = "src/main.rs"
 [dependencies]
 # The wallet library of the NEB project, pinned to a release tag: keys, chain scan, coin selection, signing.
 neb-wallet = { git = "https://github.com/SilasEigen/neb", tag = "v1.0.1" }
+# Two crates of the same release: the outputs of the chain and the JSON of the node.
+neb-chain = { git = "https://github.com/SilasEigen/neb", tag = "v1.0.1" }
+neb-json = { git = "https://github.com/SilasEigen/neb", tag = "v1.0.1" }
+# HTTPS for the public node, with rustls: no system TLS library to install.
+ureq = { version = "2", default-features = false, features = ["tls"] }
 # The window toolkit. Pinned to a minor version: its API changes between minor versions.
 eframe = { version = "0.29", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }
 # Decodes the two logo images, nothing else.

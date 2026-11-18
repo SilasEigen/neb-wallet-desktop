@@ -14,7 +14,9 @@ Status: early. CI builds and tests it on all three systems. Only the Windows bui
 
 ## Running it
 
-The wallet reads the chain from a NEB node over JSON-RPC, `http://127.0.0.1:8432` by default (a mainnet node's port). Start a node first: see the [mainnet guide](https://github.com/SilasEigen/neb/blob/main/docs/mainnet.md). You can change the node address in Settings.
+The wallet reads the chain from a NEB node over JSON-RPC. It first tries a node on the same computer, `http://127.0.0.1:8432` (a mainnet node's port). When none answers, it asks the project's public node over HTTPS. The public node only reports balances and relays signed payments: the key never leaves your computer.
+
+To run your own node, see the [mainnet guide](https://github.com/SilasEigen/neb/blob/main/docs/mainnet.md). You can set another node address in Settings.
 
 ## Building
 

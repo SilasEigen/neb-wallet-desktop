@@ -164,7 +164,7 @@ impl App {
             } else if !self.node_error.is_empty() {
                 ("\u{25cb} node offline".to_string(), GREY)
             } else if let Some(b) = &self.balance {
-                (format!("\u{25cf} block {}", b.height), GREEN)
+                (format!("\u{25cf} block {}{}", b.height, if b.public { " \u{b7} public node" } else { "" }), GREEN)
             } else {
                 (String::new(), GREY)
             };
@@ -354,7 +354,8 @@ impl App {
                     Err(e) => self.error = e,
                 }
             }
-            ui.label(text("The default is a neb-node running on this computer.", 12.0, GREY));
+            ui.label(text("The default is a neb-node running on this computer. When there is none,", 12.0, GREY));
+            ui.label(text("the wallet asks the public node of the project.", 12.0, GREY));
         });
         ui.add_space(4.0);
         card(ui, |ui| {

@@ -2,8 +2,11 @@
 
 use std::path::{Path, PathBuf};
 
+use neb_json::Value;
 use neb_wallet::wallet::{change_lock, recipient_lock};
-use neb_wallet::{FEE, RpcClient, Wallet, WalletKey, build_transaction, format_amount, parse_amount, scan, select};
+use neb_wallet::{FEE, Wallet, WalletKey, build_transaction, format_amount, parse_amount, select};
+
+use crate::remote;
 
 pub const DEFAULT_NODE: &str = "http://127.0.0.1:8432";
 
@@ -92,17 +95,20 @@ pub struct Balance {
     pub spendable: String,
     /// Coinbase outputs younger than 100 blocks; empty when there are none.
     pub maturing: String,
+    /// The answer came from the public node: no node answered on this computer.
+    pub public: bool,
 }
 
-/// Reads the whole chain through the node: one call per block.
+/// Asks the first node that answers: the saved one, then the public node when the saved one is the default.
 pub fn balance(wallet: &Wallet, node: &str) -> Result<Balance, String> {
-    let client = RpcClient::new(node)?;
-    let scan = scan(&client, wallet).map_err(|e| e.to_string())?;
+    let (node, tip) = remote::reach(node)?;
+    let scan = remote::scan(&node, tip, wallet)?;
     let (mature, all) = (scan.mature_balance(), scan.balance());
     Ok(Balance {
         height: scan.tip_height,
         spendable: format_amount(mature),
         maturing: if all > mature { format_amount(all - mature) } else { String::new() },
+        public: node == remote::PUBLIC_NODE,
     })
 }
 
@@ -125,17 +131,19 @@ pub fn send(wallet: &Wallet, node: &str, to: &str, amount: &str) -> Result<Strin
     let amount = parse_amount(amount.trim()).map_err(|e| e.to_string())?;
     let recipient = recipient_lock(to.trim()).map_err(|e| e.to_string())?;
     let change = change_lock(wallet).map_err(|e| e.to_string())?;
-    let client = RpcClient::new(node)?;
-    let scan = scan(&client, wallet).map_err(|e| e.to_string())?;
+    let (node, tip) = remote::reach(node)?;
+    let scan = remote::scan(&node, tip, wallet)?;
     let selection = select(&scan.mature(), amount, FEE).map_err(|e| e.to_string())?;
     // The chain id is the genesis block id (spec/node.md section 5.2).
-    let chain_id = hex32(&client.block_hash(0)?).ok_or("bad genesis hash")?;
+    let genesis = remote::call(&node, "getblockhash", vec![Value::Number(0)])?;
+    let chain_id = genesis.as_str().and_then(hex32).ok_or("bad genesis hash")?;
     let tx = build_transaction(wallet, &selection, recipient, &chain_id, change).map_err(|e| e.to_string())?;
     let hex: String = tx.encode().iter().map(|b| format!("{b:02x}")).collect();
-    client.send_raw_transaction(&hex)
+    let sent = remote::call(&node, "sendrawtransaction", vec![Value::String(hex)])?;
+    sent.as_str().map(str::to_string).ok_or_else(|| "transaction id is not a string".to_string())
 }
 
-fn hex32(text: &str) -> Option<[u8; 32]> {
+pub(crate) fn hex32(text: &str) -> Option<[u8; 32]> {
     if text.len() != 64 || !text.is_ascii() {
         return None;
     }

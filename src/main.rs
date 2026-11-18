@@ -5,6 +5,7 @@
 
 mod backend;
 mod qr;
+mod remote;
 mod screens;
 mod ui;
 
