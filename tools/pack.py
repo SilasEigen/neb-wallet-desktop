@@ -3,7 +3,8 @@
 
     python3 tools/pack.py VERSION PLATFORM PROGRAM OUT_DIR EPOCH
 
-PLATFORM is windows-x86_64 (a .zip) or linux-x86_64 (a .tar.gz). The archive holds one folder,
+PLATFORM is windows-x86_64 (a .zip), or linux-x86_64, macos-aarch64 or macos-x86_64 (a .tar.gz). The archive holds
+one folder,
 neb-wallet-desktop-VERSION-PLATFORM, with the program, README.md, CHANGELOG.md and LICENSE. Every entry carries the
 time EPOCH (seconds, UTC) and fixed owners and modes, so the same files give the same archive. Prints the SHA-256.
 """
@@ -23,7 +24,7 @@ def main() -> None:
     if len(sys.argv) != 6:
         sys.exit(__doc__)
     version, platform, program, out_dir, epoch = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], int(sys.argv[5])
-    if platform not in ("windows-x86_64", "linux-x86_64"):
+    if platform not in ("windows-x86_64", "linux-x86_64", "macos-aarch64", "macos-x86_64"):
         sys.exit("unknown platform: " + platform)
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     folder = "neb-wallet-desktop-%s-%s" % (version, platform)
