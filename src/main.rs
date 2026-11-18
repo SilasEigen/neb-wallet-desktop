@@ -120,7 +120,7 @@ impl App {
         style.visuals = egui::Visuals::dark();
         style.visuals.panel_fill = GROUND;
         style.visuals.extreme_bg_color = CARD;
-        style.visuals.selection.bg_fill = Color32::from_rgb(40, 90, 40);
+        style.visuals.selection.bg_fill = Color32::from_rgb(25, 62, 40);
         style.visuals.selection.stroke = Stroke::new(1.0_f32, GREEN);
         style.spacing.item_spacing = vec2(8.0, 10.0);
         style.spacing.button_padding = vec2(14.0, 10.0);

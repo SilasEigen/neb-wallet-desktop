@@ -7,7 +7,8 @@ use eframe::egui::{
 pub const GROUND: Color32 = Color32::from_rgb(18, 18, 18);
 pub const CARD: Color32 = Color32::from_rgb(28, 28, 28);
 pub const EDGE: Color32 = Color32::from_rgb(68, 68, 68);
-pub const GREEN: Color32 = Color32::from_rgb(135, 255, 135);
+/// The green of the logo (`assets/logo.png`).
+pub const GREEN: Color32 = Color32::from_rgb(84, 208, 135);
 pub const WHITE: Color32 = Color32::from_rgb(238, 238, 238);
 pub const GREY: Color32 = Color32::from_rgb(128, 128, 128);
 
